@@ -14,8 +14,11 @@ IMAP_PORT = int(sys.argv[2])
 EMAIL_ADDRESS = sys.argv[3]
 PASSWORD = sys.argv[4]
 
-# From email address to delete
+# From email address pattern to delete
 FROM_EMAIL = sys.argv[5]
+
+# Pattern to match the sender's email address
+sender_pattern = re.compile(FROM_EMAIL)
 
 # Age of emails to delete (in days)
 AGE = int(sys.argv[6])
@@ -34,36 +37,52 @@ imap_server.login(EMAIL_ADDRESS, PASSWORD)
 mailbox = 'INBOX'
 imap_server.select(mailbox)
 
-# Get all email IDs for emails from senders matching an email address pattern in FROM_EMAIL.
-result, data = imap_server.uid('search', None, f'(FROM "{FROM_EMAIL}")')
+# Get all mail IDs for messages older than AGE days
+result, data = imap_server.uid('search', None, "BEFORE", date_threshold.strftime("%d-%b-%Y"))
 mail_ids = data[0].split()
+
+# Set email_deleted_count to 0
+email_deleted_count = 0
 
 # Delete all emails from the senders matching the email address pattern
 for id in mail_ids:
+    # Fetch the email headers
+    result, data = imap_server.uid('fetch', id, '(BODY[HEADER.FIELDS (FROM SUBJECT DATE)])')
+    raw_email = data[0][1].decode('utf-8', errors='ignore')
 
-    # If the date of this email is older than AGE days, delete it
-    result, data = imap_server.uid('fetch', id, '(RFC822)')
-    raw_email = data[0][1]
-    email_message = email.message_from_bytes(raw_email)
-    date_str = email_message['Date']
-    date = email.utils.parsedate(date_str)
-    if date is None:
-        print(f"Could not parse date: {date_str}")
-        continue
-    if (date[0], date[1], date[2]) > (date_threshold.year, date_threshold.month, date_threshold.day):
-        print(f"Skipping email with date: {date_str}")
-    else:
+    # Parse the email headers to get the sender's email address
+    email_message = email.message_from_string(raw_email)
+    from_address = email.utils.parseaddr(email_message['From'])[1]
+
+    # Parse the email headers to get the date
+    date_str = email_message.get('Date')
+
+    # Get email subject
+    subject = email_message.get('Subject')
+
+    # If the sender's email address matches the pattern, mark the email for deletion
+    if sender_pattern.match(from_address):
+        print(f"Deleting email: {subject} from: {from_address} with date: {date_str}")
+
         try:
             imap_server.uid('store', id, '+FLAGS', '\\Deleted')
+            email_deleted_count += 1
         except imaplib.IMAP4.error as e:
             print(f"IMAP error: {e}")
         except Exception as e:
-            print(f"Unexpected error: {e}")
-            
-        print(f"Deleting email: {email_message.get('Subject')} with date: {date_str}")
+            print(f"Unexpected error: {e}") 
+
+    # else:
+        # print(f"Skipping email: {subject} from: {from_address} with date: {date_str}")
 
 # Expunge the deleted emails
-imap_server.expunge()
+try:
+    imap_server.expunge()
+    print(f"Expunged {email_deleted_count} deleted emails.")
+except imaplib.IMAP4.error as e:
+    print(f"IMAP error: {e}")
+except Exception as e:
+    print(f"Unexpected error: {e}")
 
 # Logout and close the connection
 imap_server.logout()
