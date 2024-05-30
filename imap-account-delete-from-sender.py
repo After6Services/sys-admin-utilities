@@ -47,7 +47,7 @@ email_deleted_count = 0
 # Delete all emails from the senders matching the email address pattern
 for id in mail_ids:
     # Fetch the email headers
-    result, data = imap_server.uid('fetch', id, '(BODY[HEADER.FIELDS (FROM SUBJECT DATE)])')
+    result, data = imap_server.uid('fetch', id, '(BODY[HEADER.FIELDS (FROM DATE SUBJECT)])')
     raw_email = data[0][1].decode('utf-8', errors='ignore')
 
     # Parse the email headers to get the sender's email address
@@ -72,8 +72,8 @@ for id in mail_ids:
         except Exception as e:
             print(f"Unexpected error: {e}") 
 
-    # else:
-        # print(f"Skipping email: {subject} from: {from_address} with date: {date_str}")
+    else:
+        print(f"Skipping email: {subject} from: {from_address} with date: {date_str}")
 
 # Expunge the deleted emails
 try:
