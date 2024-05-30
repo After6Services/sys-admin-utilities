@@ -20,7 +20,7 @@ FROM_EMAIL = sys.argv[5]
 # Pattern to match the sender's email address
 sender_pattern = re.compile(FROM_EMAIL)
 
-# Age of emails to delete (in days)
+# Minimum age of emails to delete (in days)
 AGE = int(sys.argv[6])
 
 # Calculate date threshold
